@@ -1,0 +1,120 @@
+name: Claude Code Basic Workflow
+
+# イシューコメントでの@claude-codeメンションをトリガー
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-code-basic:
+    runs-on: ubuntu-latest
+    
+    # @claude-codeメンションがある場合のみ実行
+    if: contains(github.event.comment.body, '@claude-code')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract task from comment
+        id: extract_task
+        run: |
+          # コメント本文から@claude-code以降のテキストを抽出
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          # @claude-codeメンションの後のテキストを抽出
+          TASK=$(echo "$COMMENT_BODY" | sed -n 's/.*@claude-code[[:space:]]*\(.*\)/\1/p' | head -1)
+          
+          echo "task=$TASK" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          
+          echo "Extracted task: $TASK"
+          echo "Issue number: $ISSUE_NUMBER"
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+      
+      - name: Execute Claude Code task
+        id: claude_execution
+        run: |
+          # タスクが空でない場合のみ実行
+          if [ -n "${{ steps.extract_task.outputs.task }}" ]; then
+            echo "🤖 Executing Claude Code task: ${{ steps.extract_task.outputs.task }}"
+            
+            # Claude APIキーの設定
+            export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+            
+            # Claude Codeでタスクを実行
+            claude-code "${{ steps.extract_task.outputs.task }}" \
+              --auto-commit \
+              --commit-message "feat: Claude Code task from issue #${{ steps.extract_task.outputs.issue_number }}" > claude_output.log 2>&1
+            
+            echo "✅ Claude Code execution completed"
+            echo "OUTPUT_FILE=claude_output.log" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No valid task found in mention"
+            echo "OUTPUT_FILE=" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Create execution summary
+        if: always()
+        run: |
+          echo "## 🤖 Claude Code Basic Execution Summary" > summary.md
+          echo "" >> summary.md
+          echo "**Task:** ${{ steps.extract_task.outputs.task }}" >> summary.md
+          echo "**Issue:** #${{ steps.extract_task.outputs.issue_number }}" >> summary.md
+          echo "**Status:** ${{ job.status }}" >> summary.md
+          echo "" >> summary.md
+          
+          if [ -f claude_output.log ]; then
+            echo "### Execution Log" >> summary.md
+            echo "\`\`\`" >> summary.md
+            tail -50 claude_output.log >> summary.md
+            echo "\`\`\`" >> summary.md
+          else
+            echo "### Error" >> summary.md
+            echo "No execution log found." >> summary.md
+          fi
+      
+      - name: Post result comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let summary = '';
+            if (fs.existsSync('summary.md')) {
+              summary = fs.readFileSync('summary.md', 'utf8');
+            } else {
+              summary = '## 🤖 Claude Code Execution Failed\n\nCould not execute the requested task.';
+            }
+            
+            const issueNumber = parseInt('${{ steps.extract_task.outputs.issue_number }}');
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: summary
+            });
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-logs-${{ github.run_number }}
+          path: |
+            claude_output.log
+            summary.md
+          retention-days: 7
