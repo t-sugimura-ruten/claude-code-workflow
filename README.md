@@ -2,57 +2,52 @@
 
 Claude CodeをGitHub Actionsで自動実行するワークフローです。
 
-## 🚀 クイックスタート
+## 🚀 概要
 
-### 1. APIキーの設定
+このプロジェクトは、GitHub Issues経由でClaude Codeを実行し、結果をコミットとして自動保存するワークフローを提供します。
+
+## 📋 セットアップ
+
+### 1. API キーの設定
 
 1. リポジトリの `Settings` → `Secrets and variables` → `Actions`
 2. `New repository secret` で以下を追加：
    - **Name**: `ANTHROPIC_API_KEY`
    - **Secret**: あなたのAnthropic APIキー
 
-### 2. 基本的な使い方
+### 2. ワークフローの有効化
 
-イシューコメントで `@claude-code` をメンションしてタスクを指定：
+GitHub Actionsが有効になっていることを確認してください。
+
+## 🎯 使用方法
+
+### Issue経由でのタスク実行
+
+GitHub Issuesで `@claude-code` をメンションしてタスクを指定：
 
 ```
 @claude-code Hello Worldを出力するPythonファイルを作成してください
 ```
 
-## 📋 現在の機能
-
-### ✨ 基本ワークフロー
-- イシューコメントでの `@claude-code` メンション検知
-- Claude Codeの自動実行
-- 実行結果のコメント投稿
-- ログのアーティファクト保存
-
-## 🎯 使用例
-
-### シンプルなファイル作成
-```
-@claude-code package.jsonファイルを作成してください
-```
-
-### コード修正
-```
-@claude-code app.jsファイルのバグを修正してください
-```
-
-### テスト追加
-```
-@claude-code utilsモジュールのテストを追加してください
-```
-
-## 📁 ファイル構成
+## 📁 プロジェクト構成
 
 ```
-.github/
-└── workflows/
-    └── claude-code-basic.yml    # 基本ワークフロー
+claude-code-workflow/
+├── .claude-code/              # Claude Code実行履歴（自動生成）
+├── .github/
+│   └── workflows/
+│       └── claude-code-official.yml  # GitHub Actions ワークフロー
+├── docs/                      # ドキュメント
+├── examples/                  # サンプルファイル
+│   ├── hello.js              # JavaScript Hello World
+│   ├── hello.py              # Python Hello World
+│   └── main.py               # メイン実行ファイル
+├── README.md                  # このファイル（人間向け）
+├── CLAUDE.md                  # Claude Code向け指示
+└── .gitignore
 ```
 
-## 🔄 開発ステータス
+## 🔧 開発ステータス
 
 - ✅ 基本ワークフロー（Stage 1）
 - ⏳ 高度なワークフロー（Stage 2 - 予定）
@@ -70,15 +65,20 @@ Claude CodeをGitHub Actionsで自動実行するワークフローです。
 2. APIキーが正しく設定されているか確認
 3. タスクの内容が明確か確認
 
-## 📝 次のステップ
+## 📚 関連リンク
 
-このワークフローが正常に動作することを確認したら、より高度な機能を追加予定：
+- [Claude Code 公式ドキュメント](https://docs.anthropic.com/)
+- [GitHub Actions ワークフロー構文](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions)
 
-- タスクタイプ別の自動分類
-- プルリクエストの自動作成
-- 複数ブランチ対応
-- カスタムイシューテンプレート
+## 🤝 コントリビューション
+
+このプロジェクトへの貢献を歓迎します。以下の方法で参加できます：
+
+- バグ報告
+- 機能提案
+- プルリクエスト
+- ドキュメント改善
 
 ---
 
-**テスト方法**: このリポジトリでイシューを作成し、コメントで `@claude-code Hello World` とメンションしてみてください！
+**テスト方法**: このリポジトリでIssueを作成し、コメントで `@claude-code Hello World` とメンションしてみてください！
