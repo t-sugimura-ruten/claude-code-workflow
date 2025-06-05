@@ -1,0 +1,114 @@
+name: Claude Code Official Action
+
+# イシューコメントでの@claude-codeメンションをトリガー
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-code-official:
+    runs-on: ubuntu-latest
+    
+    # @claude-codeメンションがある場合のみ実行
+    if: contains(github.event.comment.body, '@claude-code')
+    
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: read
+    
+    steps:
+      - name: Extract task from comment
+        id: extract_task
+        run: |
+          # コメント本文から@claude-code以降のテキストを抽出
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          # @claude-codeメンションの後のテキストを抽出
+          TASK=$(echo "$COMMENT_BODY" | sed -n 's/.*@claude-code[[:space:]]*\(.*\)/\1/p' | head -1)
+          
+          echo "task=$TASK" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          
+          echo "Extracted task: $TASK"
+          echo "Issue number: $ISSUE_NUMBER"
+      
+      - name: Execute Claude Code Task
+        id: claude_execution
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.extract_task.outputs.task }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write"
+          max_turns: "5"
+      
+      - name: Create execution summary
+        if: always()
+        run: |
+          echo "## 🤖 Claude Code Official Action Summary" > summary.md
+          echo "" >> summary.md
+          echo "**Task:** ${{ steps.extract_task.outputs.task }}" >> summary.md
+          echo "**Issue:** #${{ steps.extract_task.outputs.issue_number }}" >> summary.md
+          echo "**Status:** ${{ steps.claude_execution.outcome }}" >> summary.md
+          echo "**Workflow:** Claude Code Official Action" >> summary.md
+          echo "" >> summary.md
+          
+          if [ "${{ steps.claude_execution.outcome }}" = "success" ]; then
+            echo "### ✅ Execution Result" >> summary.md
+            echo "Claude Code executed successfully!" >> summary.md
+            
+            # 実行ファイルが存在する場合の処理
+            if [ -n "${{ steps.claude_execution.outputs.execution_file }}" ]; then
+              echo "" >> summary.md
+              echo "**Execution Log Available:** Yes" >> summary.md
+              echo "**Execution File:** ${{ steps.claude_execution.outputs.execution_file }}" >> summary.md
+            fi
+          else
+            echo "### ❌ Execution Failed" >> summary.md
+            echo "Claude Code execution failed. Please check the logs in the Actions tab." >> summary.md
+          fi
+          
+          echo "" >> summary.md
+          echo "---" >> summary.md
+          echo "*Powered by Official Claude Code Action | $(date)*" >> summary.md
+      
+      - name: Post result comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            let summary = '';
+            if (fs.existsSync('summary.md')) {
+              summary = fs.readFileSync('summary.md', 'utf8');
+            } else {
+              summary = '## 🤖 Claude Code Execution Failed\n\nCould not execute the requested task.';
+            }
+            
+            const issueNumber = parseInt('${{ steps.extract_task.outputs.issue_number }}');
+            
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: summary
+              });
+              console.log('✅ Comment posted successfully');
+            } catch (error) {
+              console.error('❌ Failed to post comment:', error.message);
+            }
+      
+      - name: Upload execution artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-official-execution-${{ github.run_number }}
+          path: |
+            summary.md
+            ${{ steps.claude_execution.outputs.execution_file }}
+          retention-days: 7
