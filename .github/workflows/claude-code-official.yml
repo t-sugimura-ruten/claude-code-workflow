@@ -31,13 +31,36 @@ jobs:
           COMMENT_BODY="${{ github.event.comment.body }}"
           ISSUE_NUMBER="${{ github.event.issue.number }}"
           
-          # @claude-codeメンションの後のテキストを抽出
-          TASK=$(echo "$COMMENT_BODY" | sed -n 's/.*@claude-code[[:space:]]*\(.*\)/\1/p' | head -1)
+          echo "Raw comment body:"
+          echo "$COMMENT_BODY"
+          echo "---"
+          
+          # @claude-codeメンションの後のテキストを抽出（改良版）
+          TASK=$(echo "$COMMENT_BODY" | grep -oP '@claude-code\s+\K.*' | head -1)
+          
+          # 代替方法も試す
+          if [ -z "$TASK" ]; then
+            echo "Trying alternative extraction method..."
+            TASK=$(echo "$COMMENT_BODY" | sed -n 's/.*@claude-code[[:space:]]\+\(.*\)/\1/p' | head -1)
+          fi
+          
+          # さらに代替方法
+          if [ -z "$TASK" ]; then
+            echo "Trying simple extraction..."
+            TASK=$(echo "$COMMENT_BODY" | sed 's/.*@claude-code[[:space:]]*//' | head -1)
+          fi
+          
+          # 最終的にデフォルトタスクを設定
+          if [ -z "$TASK" ] || [ "$TASK" = "@claude-code" ]; then
+            echo "No task found, using default"
+            TASK="Please help with the request in this issue"
+          fi
           
           echo "task=$TASK" >> $GITHUB_OUTPUT
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
           
-          echo "Extracted task: $TASK"
+          echo "Extracted task: '$TASK'"
+          echo "Task length: ${#TASK}"
           echo "Issue number: $ISSUE_NUMBER"
       
       - name: Create or switch to feature branch
@@ -68,7 +91,10 @@ jobs:
         id: claude_execution
         uses: anthropics/claude-code-base-action@beta
         with:
-          prompt: ${{ steps.extract_task.outputs.task }}
+          prompt: |
+            ${{ steps.extract_task.outputs.task }}
+            
+            Context: This is a request from GitHub Issue #${{ steps.extract_task.outputs.issue_number }} in repository ${{ github.repository }}.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write"
           max_turns: "5"
