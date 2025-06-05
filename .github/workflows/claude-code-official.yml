@@ -157,11 +157,9 @@ jobs:
             COMMIT_SHA="${{ github.sha }}"
             BRANCH_ACTION="${{ steps.create_branch.outputs.branch_action }}"
             
-            # タスク内容を一時ファイルから取得（特殊文字安全）
-            TASK_CONTENT=$(cat << 'TASK_CONTENT_EOF'
-            ${{ steps.extract_task.outputs.task }}
-            TASK_CONTENT_EOF
-            )
+            # タスク内容をファイルから直接取得（安全な方法）
+            printf '%s\n' '${{ steps.extract_task.outputs.task }}' > temp_task.txt
+            TASK_CONTENT=$(cat temp_task.txt)
             
             # 履歴ファイルを段階的に作成
             echo "# Claude Code Execution History" > "$HISTORY_FILE"
@@ -173,7 +171,7 @@ jobs:
             echo "" >> "$HISTORY_FILE"
             echo "## Request Details" >> "$HISTORY_FILE"
             echo '```' >> "$HISTORY_FILE"
-            echo "$TASK_CONTENT" >> "$HISTORY_FILE"
+            cat temp_task.txt >> "$HISTORY_FILE"
             echo '```' >> "$HISTORY_FILE"
             echo "" >> "$HISTORY_FILE"
             echo "## Changed Files" >> "$HISTORY_FILE"
@@ -191,6 +189,9 @@ jobs:
             echo "## Branch Status" >> "$HISTORY_FILE"
             echo "- Action: $BRANCH_ACTION" >> "$HISTORY_FILE"
             echo "- Branch: $BRANCH_NAME" >> "$HISTORY_FILE"
+            
+            # 一時ファイルを削除
+            rm -f temp_task.txt
             
             # Issue別サマリーファイルを作成/更新
             CHANGED_FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l)
