@@ -27,27 +27,31 @@ jobs:
       - name: Extract task from comment
         id: extract_task
         run: |
-          # コメント本文から@claude-code以降のテキストを抽出
-          COMMENT_BODY="${{ github.event.comment.body }}"
+          # コメント本文から@claude-code以降のテキストを抽出（安全な方法）
+          # GitHub Actions変数を一時ファイルに保存してから処理
+          cat > comment_body.txt << 'COMMENT_EOF'
+          ${{ github.event.comment.body }}
+          COMMENT_EOF
+          
           ISSUE_NUMBER="${{ github.event.issue.number }}"
           
           echo "Raw comment body:"
-          echo "$COMMENT_BODY"
+          cat comment_body.txt
           echo "---"
           
           # @claude-codeメンションの後のテキストを抽出（改良版）
-          TASK=$(echo "$COMMENT_BODY" | grep -oP '@claude-code\s+\K.*' | head -1)
+          TASK=$(cat comment_body.txt | grep -oP '@claude-code\s+\K.*' | head -1)
           
           # 代替方法も試す
           if [ -z "$TASK" ]; then
             echo "Trying alternative extraction method..."
-            TASK=$(echo "$COMMENT_BODY" | sed -n 's/.*@claude-code[[:space:]]\+\(.*\)/\1/p' | head -1)
+            TASK=$(cat comment_body.txt | sed -n 's/.*@claude-code[[:space:]]\+\(.*\)/\1/p' | head -1)
           fi
           
           # さらに代替方法
           if [ -z "$TASK" ]; then
             echo "Trying simple extraction..."
-            TASK=$(echo "$COMMENT_BODY" | sed 's/.*@claude-code[[:space:]]*//' | head -1)
+            TASK=$(cat comment_body.txt | sed 's/.*@claude-code[[:space:]]*//' | head -1)
           fi
           
           # 最終的にデフォルトタスクを設定
@@ -56,12 +60,22 @@ jobs:
             TASK="Please help with the request in this issue"
           fi
           
-          echo "task=$TASK" >> $GITHUB_OUTPUT
+          # タスクを一時ファイルに保存（特殊文字対策）
+          echo "$TASK" > task_content.txt
+          
+          # GitHub Outputに安全に保存
+          echo "task<<TASK_EOF" >> $GITHUB_OUTPUT
+          cat task_content.txt >> $GITHUB_OUTPUT
+          echo "TASK_EOF" >> $GITHUB_OUTPUT
+          
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
           
           echo "Extracted task: '$TASK'"
           echo "Task length: ${#TASK}"
           echo "Issue number: $ISSUE_NUMBER"
+          
+          # 一時ファイルを削除
+          rm -f comment_body.txt task_content.txt
       
       - name: Create or switch to feature branch
         id: create_branch
@@ -134,7 +148,6 @@ jobs:
             
             # 実行履歴を記録（安全なファイル出力）
             CURRENT_DATE=$(date)
-            TASK_CONTENT="${{ steps.extract_task.outputs.task }}"
             ISSUE_NUM="${{ steps.extract_task.outputs.issue_number }}"
             BRANCH_NAME="${{ steps.create_branch.outputs.branch_name }}"
             REPO_NAME="${{ github.repository }}"
@@ -144,13 +157,18 @@ jobs:
             COMMIT_SHA="${{ github.sha }}"
             BRANCH_ACTION="${{ steps.create_branch.outputs.branch_action }}"
             
+            # タスク内容を一時ファイルから取得（特殊文字安全）
+            TASK_CONTENT=$(cat << 'TASK_CONTENT_EOF'
+            ${{ steps.extract_task.outputs.task }}
+            TASK_CONTENT_EOF
+            )
+            
             # 履歴ファイルを段階的に作成
             echo "# Claude Code Execution History" > "$HISTORY_FILE"
             echo "" >> "$HISTORY_FILE"
             echo "Date: $CURRENT_DATE" >> "$HISTORY_FILE"
             echo "Issue: #$ISSUE_NUM" >> "$HISTORY_FILE"
             echo "Branch: $BRANCH_NAME" >> "$HISTORY_FILE"
-            echo "Task: $TASK_CONTENT" >> "$HISTORY_FILE"
             echo "Execution: $TIMESTAMP" >> "$HISTORY_FILE"
             echo "" >> "$HISTORY_FILE"
             echo "## Request Details" >> "$HISTORY_FILE"
@@ -189,7 +207,6 @@ jobs:
               echo "## Execution Timeline" >> "$ISSUE_SUMMARY"
               echo "" >> "$ISSUE_SUMMARY"
               echo "### 1. $CURRENT_TIME" >> "$ISSUE_SUMMARY"
-              echo "- Task: $TASK_CONTENT" >> "$ISSUE_SUMMARY"
               echo "- Files: $CHANGED_FILE_COUNT files changed" >> "$ISSUE_SUMMARY"
               echo "- History: [execution-$TIMESTAMP.md](./history/execution-$TIMESTAMP.md)" >> "$ISSUE_SUMMARY"
             else
@@ -199,7 +216,6 @@ jobs:
               # 新しい実行を追加
               echo "" >> "$ISSUE_SUMMARY"
               echo "### $EXEC_COUNT. $CURRENT_TIME" >> "$ISSUE_SUMMARY"
-              echo "- Task: $TASK_CONTENT" >> "$ISSUE_SUMMARY"
               echo "- Files: $CHANGED_FILE_COUNT files changed" >> "$ISSUE_SUMMARY"
               echo "- History: [execution-$TIMESTAMP.md](./history/execution-$TIMESTAMP.md)" >> "$ISSUE_SUMMARY"
             fi
