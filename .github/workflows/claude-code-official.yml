@@ -1,4 +1,4 @@
-name: Claude Code Official Action
+name: Claude Code Official Action v2
 
 # イシューコメントでの@claude-codeメンションをトリガー
 on:
@@ -19,6 +19,11 @@ jobs:
       actions: read
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Extract task from comment
         id: extract_task
         run: |
@@ -35,6 +40,12 @@ jobs:
           echo "Extracted task: $TASK"
           echo "Issue number: $ISSUE_NUMBER"
       
+      - name: List files before Claude execution
+        run: |
+          echo "Files before Claude execution:"
+          ls -la
+          git status
+      
       - name: Execute Claude Code Task
         id: claude_execution
         uses: anthropics/claude-code-base-action@beta
@@ -44,20 +55,65 @@ jobs:
           allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write"
           max_turns: "5"
       
+      - name: List files after Claude execution
+        run: |
+          echo "Files after Claude execution:"
+          ls -la
+          git status
+          echo "Git diff:"
+          git diff --name-only
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Changed files found!"
+            git diff --stat
+          else
+            echo "No changed files found."
+          fi
+      
+      - name: Commit and push changes
+        run: |
+          # Gitの設定
+          git config --local user.email "action@github.com"
+          git config --local user.name "Claude Code Action"
+          
+          # 変更があるかチェック
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Changes detected, committing..."
+            git add .
+            git commit -m "🤖 Claude Code: ${{ steps.extract_task.outputs.task }} (Issue #${{ steps.extract_task.outputs.issue_number }})"
+            git push
+            echo "Changes committed and pushed successfully!"
+            echo "changes_committed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes to commit"
+            echo "changes_committed=false" >> $GITHUB_OUTPUT
+          fi
+        id: commit_changes
+      
       - name: Create execution summary
         if: always()
         run: |
-          echo "## 🤖 Claude Code Official Action Summary" > summary.md
+          echo "## 🤖 Claude Code Official Action Summary v2" > summary.md
           echo "" >> summary.md
           echo "**Task:** ${{ steps.extract_task.outputs.task }}" >> summary.md
           echo "**Issue:** #${{ steps.extract_task.outputs.issue_number }}" >> summary.md
           echo "**Status:** ${{ steps.claude_execution.outcome }}" >> summary.md
-          echo "**Workflow:** Claude Code Official Action" >> summary.md
+          echo "**Changes Committed:** ${{ steps.commit_changes.outputs.changes_committed }}" >> summary.md
+          echo "**Workflow:** Claude Code Official Action v2" >> summary.md
           echo "" >> summary.md
           
           if [ "${{ steps.claude_execution.outcome }}" = "success" ]; then
             echo "### ✅ Execution Result" >> summary.md
             echo "Claude Code executed successfully!" >> summary.md
+            
+            if [ "${{ steps.commit_changes.outputs.changes_committed }}" = "true" ]; then
+              echo "" >> summary.md
+              echo "**Files Created/Modified:** Yes - Check the latest commit!" >> summary.md
+              echo "**Repository Updated:** ✅ Changes have been committed and pushed" >> summary.md
+            else
+              echo "" >> summary.md
+              echo "**Files Created/Modified:** No changes detected" >> summary.md
+              echo "**Repository Updated:** ❌ No changes to commit" >> summary.md
+            fi
             
             # 実行ファイルが存在する場合の処理
             if [ -n "${{ steps.claude_execution.outputs.execution_file }}" ]; then
@@ -72,7 +128,7 @@ jobs:
           
           echo "" >> summary.md
           echo "---" >> summary.md
-          echo "*Powered by Official Claude Code Action | $(date)*" >> summary.md
+          echo "*Powered by Official Claude Code Action v2 | $(date)*" >> summary.md
       
       - name: Post result comment
         if: always()
@@ -107,7 +163,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: claude-official-execution-${{ github.run_number }}
+          name: claude-official-execution-v2-${{ github.run_number }}
           path: |
             summary.md
             ${{ steps.claude_execution.outputs.execution_file }}
