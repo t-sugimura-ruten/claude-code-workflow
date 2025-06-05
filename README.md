@@ -2,83 +2,136 @@
 
 Claude CodeをGitHub Actionsで自動実行するワークフローです。
 
-## 🚀 クイックスタート
+## 🚀 概要
 
-### 1. APIキーの設定
+このリポジトリは、GitHub IssuesでClaude Codeをメンションすることで、自動的にコード生成・修正を行うシステムのデモンストレーションです。
 
-1. リポジトリの `Settings` → `Secrets and variables` → `Actions`
-2. `New repository secret` で以下を追加：
-   - **Name**: `ANTHROPIC_API_KEY`
-   - **Secret**: あなたのAnthropic APIキー
+## ✨ 特徴
 
-### 2. 基本的な使い方
+- **自動化されたコード生成**: イシューコメントでタスクを指定するだけ
+- **GitHub Actions連携**: シームレスな実行環境
+- **実行履歴の保存**: `.claude-code/`ディレクトリに自動保存
+- **多言語対応**: JavaScript、Python等の言語に対応
 
-イシューコメントで `@claude-code` をメンションしてタスクを指定：
+## 🏗️ プロジェクト構成
 
 ```
-@claude-code Hello Worldを出力するPythonファイルを作成してください
+claude-code-workflow/
+├── .claude-code/          # Claude Code実行履歴（自動生成）
+├── .github/workflows/     # GitHub Actions設定
+├── docs/                  # ドキュメント
+│   ├── setup-guide.md    # セットアップガイド
+│   └── usage-examples.md # 使用例
+├── examples/              # サンプルコード
+│   ├── hello.js
+│   ├── hello.py
+│   └── main.py
+├── README.md              # このファイル
+├── CLAUDE.md              # Claude Code向け指示
+└── .gitignore
 ```
 
-## 📋 現在の機能
+## 🔧 セットアップ
 
-### ✨ 基本ワークフロー
-- イシューコメントでの `@claude-code` メンション検知
-- Claude Codeの自動実行
-- 実行結果のコメント投稿
-- ログのアーティファクト保存
+### 前提条件
 
-## 🎯 使用例
+- GitHubアカウント
+- リポジトリへの管理者権限
+- Anthropic APIキー
 
-### シンプルなファイル作成
+### インストール手順
+
+1. **リポジトリのフォーク**
+   ```bash
+   # このリポジトリをフォークしてください
+   ```
+
+2. **APIキーの設定**
+   - リポジトリの `Settings` → `Secrets and variables` → `Actions`
+   - `New repository secret` で `ANTHROPIC_API_KEY` を追加
+
+3. **GitHub Actionsの有効化**
+   - `Actions` タブでワークフローを確認・有効化
+
+詳細な手順は [セットアップガイド](docs/setup-guide.md) をご覧ください。
+
+## 📝 使用方法
+
+### 基本的な使い方
+
+1. **イシューを作成**
+2. **コメントでタスクを指定**:
+   ```
+   @claude-code Hello Worldを出力するPythonファイルを作成してください
+   ```
+3. **自動実行を待つ**
+4. **結果を確認**
+
+### 使用例
+
 ```
 @claude-code package.jsonファイルを作成してください
 ```
 
-### コード修正
 ```
 @claude-code app.jsファイルのバグを修正してください
 ```
 
-### テスト追加
 ```
 @claude-code utilsモジュールのテストを追加してください
 ```
 
-## 📁 ファイル構成
+詳細な使用例は [使用例ドキュメント](docs/usage-examples.md) をご覧ください。
 
-```
-.github/
-└── workflows/
-    └── claude-code-basic.yml    # 基本ワークフロー
-```
+## 🔍 ワークフローの仕組み
 
-## 🔄 開発ステータス
+1. **トリガー**: イシューコメントで `@claude-code` をメンション
+2. **実行**: GitHub ActionsがClaude Codeを起動
+3. **処理**: タスクの解析・コード生成・ファイル操作
+4. **結果**: コミット・プッシュ・コメント返信
 
-- ✅ 基本ワークフロー（Stage 1）
-- ⏳ 高度なワークフロー（Stage 2 - 予定）
-- ⏳ イシューテンプレート（Stage 3 - 予定）
+## 📊 実行履歴
 
-## 🐛 トラブルシューティング
+すべての実行履歴は `.claude-code/` ディレクトリに自動保存されます:
 
-### ワークフローが実行されない
-1. `ANTHROPIC_API_KEY` が設定されているか確認
-2. イシューコメントで `@claude-code` と正確にメンションしているか確認
-3. GitHub Actionsが有効になっているか確認
+- `issues/issue-{番号}/`: 各イシューの実行履歴
+- `summary.md`: 実行概要
+- `latest-output.txt`: 最新の出力結果
 
-### 実行エラーが発生する
-1. Actions タブでワークフロー実行ログを確認
-2. APIキーが正しく設定されているか確認
-3. タスクの内容が明確か確認
+## 🛠️ トラブルシューティング
 
-## 📝 次のステップ
+### よくある問題
 
-このワークフローが正常に動作することを確認したら、より高度な機能を追加予定：
+**ワークフローが実行されない**
+- APIキーが正しく設定されているか確認
+- GitHub Actionsが有効になっているか確認
 
-- タスクタイプ別の自動分類
-- プルリクエストの自動作成
-- 複数ブランチ対応
-- カスタムイシューテンプレート
+**実行エラーが発生する**
+- Actions タブで詳細ログを確認
+- タスク内容が明確か確認
+
+**タスクが理解されない**
+- より具体的で明確な指示に変更
+- 技術要件を明示
+
+## 🤝 貢献
+
+1. このリポジトリをフォーク
+2. フィーチャーブランチを作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. プルリクエストを作成
+
+## 📄 ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。
+
+## 🔗 関連リンク
+
+- [Claude Code公式ドキュメント](https://docs.anthropic.com/)
+- [GitHub Actions](https://github.com/features/actions)
+- [Anthropic API](https://www.anthropic.com/api)
 
 ---
 
-**テスト方法**: このリポジトリでイシューを作成し、コメントで `@claude-code Hello World` とメンションしてみてください！
+**🎯 今すぐ試す**: イシューを作成して `@claude-code Hello World` とコメントしてみてください！
