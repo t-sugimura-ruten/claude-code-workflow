@@ -132,72 +132,76 @@ jobs:
             # Issue別サマリーファイル
             ISSUE_SUMMARY="$ISSUE_DIR/summary.md"
             
-            # 実行履歴を記録
-            cat > "$HISTORY_FILE" << EOF
-# Claude Code Execution #$(ls "$HISTORY_DIR"/execution-*.md 2>/dev/null | wc -l)
+            # 実行履歴を記録（安全なファイル出力）
+            CURRENT_DATE=$(date)
+            TASK_CONTENT="${{ steps.extract_task.outputs.task }}"
+            ISSUE_NUM="${{ steps.extract_task.outputs.issue_number }}"
+            BRANCH_NAME="${{ steps.create_branch.outputs.branch_name }}"
+            REPO_NAME="${{ github.repository }}"
+            ACTOR_NAME="${{ github.actor }}"
+            WORKFLOW_NAME="${{ github.workflow }}"
+            RUN_NUMBER="${{ github.run_number }}"
+            COMMIT_SHA="${{ github.sha }}"
+            BRANCH_ACTION="${{ steps.create_branch.outputs.branch_action }}"
             
-**Date:** $(date)
-**Issue:** #${{ steps.extract_task.outputs.issue_number }}
-**Branch:** ${{ steps.create_branch.outputs.branch_name }}
-**Task:** ${{ steps.extract_task.outputs.task }}
-**Execution:** ${TIMESTAMP}
-            
-## Request Details
-\`\`\`
-${{ steps.extract_task.outputs.task }}
-\`\`\`
-            
-## Changed Files
-\`\`\`
-$CHANGED_FILES
-\`\`\`
-            
-## Execution Context
-- Repository: ${{ github.repository }}
-- Triggered by: ${{ github.actor }}
-- Workflow: ${{ github.workflow }}
-- Run: ${{ github.run_number }}
-- Commit: ${{ github.sha }}
-            
-## Branch Status
-- Action: ${{ steps.create_branch.outputs.branch_action }}
-- Branch: ${{ steps.create_branch.outputs.branch_name }}
-            
-EOF
+            # 履歴ファイルを段階的に作成
+            echo "# Claude Code Execution History" > "$HISTORY_FILE"
+            echo "" >> "$HISTORY_FILE"
+            echo "Date: $CURRENT_DATE" >> "$HISTORY_FILE"
+            echo "Issue: #$ISSUE_NUM" >> "$HISTORY_FILE"
+            echo "Branch: $BRANCH_NAME" >> "$HISTORY_FILE"
+            echo "Task: $TASK_CONTENT" >> "$HISTORY_FILE"
+            echo "Execution: $TIMESTAMP" >> "$HISTORY_FILE"
+            echo "" >> "$HISTORY_FILE"
+            echo "## Request Details" >> "$HISTORY_FILE"
+            echo '```' >> "$HISTORY_FILE"
+            echo "$TASK_CONTENT" >> "$HISTORY_FILE"
+            echo '```' >> "$HISTORY_FILE"
+            echo "" >> "$HISTORY_FILE"
+            echo "## Changed Files" >> "$HISTORY_FILE"
+            echo '```' >> "$HISTORY_FILE"
+            echo "$CHANGED_FILES" >> "$HISTORY_FILE"
+            echo '```' >> "$HISTORY_FILE"
+            echo "" >> "$HISTORY_FILE"
+            echo "## Execution Context" >> "$HISTORY_FILE"
+            echo "- Repository: $REPO_NAME" >> "$HISTORY_FILE"
+            echo "- Triggered by: $ACTOR_NAME" >> "$HISTORY_FILE"
+            echo "- Workflow: $WORKFLOW_NAME" >> "$HISTORY_FILE"
+            echo "- Run: $RUN_NUMBER" >> "$HISTORY_FILE"
+            echo "- Commit: $COMMIT_SHA" >> "$HISTORY_FILE"
+            echo "" >> "$HISTORY_FILE"
+            echo "## Branch Status" >> "$HISTORY_FILE"
+            echo "- Action: $BRANCH_ACTION" >> "$HISTORY_FILE"
+            echo "- Branch: $BRANCH_NAME" >> "$HISTORY_FILE"
             
             # Issue別サマリーファイルを作成/更新
+            CHANGED_FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l)
+            CURRENT_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+            
             if [ ! -f "$ISSUE_SUMMARY" ]; then
-              cat > "$ISSUE_SUMMARY" << EOF
-# Issue #${{ steps.extract_task.outputs.issue_number }} - Claude Code Summary
-            
-**Created:** $(date)
-**Branch:** ${{ steps.create_branch.outputs.branch_name }}
-**Total Executions:** 1
-            
-## Execution Timeline
-            
-### 1. $(date '+%Y-%m-%d %H:%M:%S')
-- **Task:** ${{ steps.extract_task.outputs.task }}
-- **Files:** $(echo "$CHANGED_FILES" | wc -l) files changed
-- **History:** [execution-${TIMESTAMP}.md](./history/execution-${TIMESTAMP}.md)
-            
-EOF
+              # 新規サマリー作成
+              echo "# Issue Summary" > "$ISSUE_SUMMARY"
+              echo "" >> "$ISSUE_SUMMARY"
+              echo "Created: $CURRENT_DATE" >> "$ISSUE_SUMMARY"
+              echo "Branch: $BRANCH_NAME" >> "$ISSUE_SUMMARY"
+              echo "Total Executions: 1" >> "$ISSUE_SUMMARY"
+              echo "" >> "$ISSUE_SUMMARY"
+              echo "## Execution Timeline" >> "$ISSUE_SUMMARY"
+              echo "" >> "$ISSUE_SUMMARY"
+              echo "### 1. $CURRENT_TIME" >> "$ISSUE_SUMMARY"
+              echo "- Task: $TASK_CONTENT" >> "$ISSUE_SUMMARY"
+              echo "- Files: $CHANGED_FILE_COUNT files changed" >> "$ISSUE_SUMMARY"
+              echo "- History: [execution-$TIMESTAMP.md](./history/execution-$TIMESTAMP.md)" >> "$ISSUE_SUMMARY"
             else
               # 既存サマリーを更新
               EXEC_COUNT=$(ls "$HISTORY_DIR"/execution-*.md 2>/dev/null | wc -l)
               
-              # サマリーファイルの実行数を更新
-              sed -i "s/\*\*Total Executions:\*\* [0-9]\+/\*\*Total Executions:\*\* $EXEC_COUNT/" "$ISSUE_SUMMARY"
-              
               # 新しい実行を追加
-              cat >> "$ISSUE_SUMMARY" << EOF
-            
-### $EXEC_COUNT. $(date '+%Y-%m-%d %H:%M:%S')
-- **Task:** ${{ steps.extract_task.outputs.task }}
-- **Files:** $(echo "$CHANGED_FILES" | wc -l) files changed
-- **History:** [execution-${TIMESTAMP}.md](./history/execution-${TIMESTAMP}.md)
-            
-EOF
+              echo "" >> "$ISSUE_SUMMARY"
+              echo "### $EXEC_COUNT. $CURRENT_TIME" >> "$ISSUE_SUMMARY"
+              echo "- Task: $TASK_CONTENT" >> "$ISSUE_SUMMARY"
+              echo "- Files: $CHANGED_FILE_COUNT files changed" >> "$ISSUE_SUMMARY"
+              echo "- History: [execution-$TIMESTAMP.md](./history/execution-$TIMESTAMP.md)" >> "$ISSUE_SUMMARY"
             fi
             
             # output.txtがルートにある場合は適切な場所に移動
@@ -207,69 +211,45 @@ EOF
             fi
             
             # Issue別READMEを作成/更新
-            cat > "$ISSUE_DIR/README.md" << EOF
-# Issue #${{ steps.extract_task.outputs.issue_number }} - Claude Code Files
-            
-**Issue Link:** [#${{ steps.extract_task.outputs.issue_number }}](${{ github.server_url }}/${{ github.repository }}/issues/${{ steps.extract_task.outputs.issue_number }})
-**Branch:** [\`${{ steps.create_branch.outputs.branch_name }}\`](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.create_branch.outputs.branch_name }})
-            
-## Files in this directory
-            
-- \`summary.md\` - Complete execution timeline and summary
-- \`latest-output.txt\` - Most recent Claude Code output
-- \`history/\` - Detailed execution history files
-- \`README.md\` - This file
-            
-## History Files
-            
-Each execution creates a timestamped history file:
-$(ls "$HISTORY_DIR"/execution-*.md 2>/dev/null | sed 's|.*history/|- |' | sort -r || echo "- No executions yet")
-            
-## Quick Links
-            
-- [View Issue](${{ github.server_url }}/${{ github.repository }}/issues/${{ steps.extract_task.outputs.issue_number }})
-- [View Branch](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.create_branch.outputs.branch_name }})
-- [Execution Summary](./summary.md)
-            
-Last updated: $(date)
-EOF
+            echo "# Issue README" > "$ISSUE_DIR/README.md"
+            echo "" >> "$ISSUE_DIR/README.md"
+            echo "Issue Link: [GitHub Issue](${{ github.server_url }}/${{ github.repository }}/issues/$ISSUE_NUM)" >> "$ISSUE_DIR/README.md"
+            echo "Branch: [Branch Link](${{ github.server_url }}/${{ github.repository }}/tree/$BRANCH_NAME)" >> "$ISSUE_DIR/README.md"
+            echo "" >> "$ISSUE_DIR/README.md"
+            echo "## Files in this directory" >> "$ISSUE_DIR/README.md"
+            echo "" >> "$ISSUE_DIR/README.md"
+            echo "- summary.md - Complete execution timeline and summary" >> "$ISSUE_DIR/README.md"
+            echo "- latest-output.txt - Most recent Claude Code output" >> "$ISSUE_DIR/README.md"
+            echo "- history/ - Detailed execution history files" >> "$ISSUE_DIR/README.md"
+            echo "- README.md - This file" >> "$ISSUE_DIR/README.md"
+            echo "" >> "$ISSUE_DIR/README.md"
+            echo "Last updated: $CURRENT_DATE" >> "$ISSUE_DIR/README.md"
             
             # メインClaude Code READMEを作成/更新
-            cat > "$CLAUDE_DIR/README.md" << EOF
-# Claude Code Execution Files
-            
-This directory contains files generated by Claude Code automation.
-            
-## Structure
-            
-\`\`\`
-.claude-code/
-├── issues/
-│   ├── issue-1/
-│   │   ├── summary.md          # Issue execution timeline
-│   │   ├── latest-output.txt   # Latest output
-│   │   ├── history/           # Detailed execution history
-│   │   └── README.md          # Issue-specific documentation
-│   ├── issue-2/
-│   └── ...
-└── README.md                  # This file
-\`\`\`
-            
-## Active Issues
-            
-$(find "$CLAUDE_DIR/issues" -name "issue-*" -type d 2>/dev/null | sort | while read issue_dir; do
-  issue_num=$(basename "$issue_dir" | sed 's/issue-//')
-  exec_count=$(ls "$issue_dir/history"/execution-*.md 2>/dev/null | wc -l)
-  echo "- [Issue #$issue_num](./issues/issue-$issue_num/) - $exec_count executions"
-done)
-            
-## Usage
-            
-These files are automatically managed by the Claude Code GitHub Action.
-Each issue gets its own directory with complete execution history.
-            
-Last updated: $(date)
-EOF
+            echo "# Claude Code Execution Files" > "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo "This directory contains files generated by Claude Code automation." >> "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo "## Structure" >> "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo '```' >> "$CLAUDE_DIR/README.md"
+            echo ".claude-code/" >> "$CLAUDE_DIR/README.md"
+            echo "├── issues/" >> "$CLAUDE_DIR/README.md"
+            echo "│   ├── issue-1/" >> "$CLAUDE_DIR/README.md"
+            echo "│   │   ├── summary.md" >> "$CLAUDE_DIR/README.md"
+            echo "│   │   ├── latest-output.txt" >> "$CLAUDE_DIR/README.md"
+            echo "│   │   ├── history/" >> "$CLAUDE_DIR/README.md"
+            echo "│   │   └── README.md" >> "$CLAUDE_DIR/README.md"
+            echo "│   └── ..." >> "$CLAUDE_DIR/README.md"
+            echo "└── README.md" >> "$CLAUDE_DIR/README.md"
+            echo '```' >> "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo "## Usage" >> "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo "These files are automatically managed by the Claude Code GitHub Action." >> "$CLAUDE_DIR/README.md"
+            echo "Each issue gets its own directory with complete execution history." >> "$CLAUDE_DIR/README.md"
+            echo "" >> "$CLAUDE_DIR/README.md"
+            echo "Last updated: $CURRENT_DATE" >> "$CLAUDE_DIR/README.md"
             
             # .gitignoreを更新（Issue別対応）
             if [ ! -f ".gitignore" ] || ! grep -q ".claude-code/issues/*/latest-output.txt" ".gitignore"; then
@@ -443,8 +423,7 @@ EOF
               echo "${{ steps.commit_changes.outputs.changed_files }}" >> summary.md
               echo "\`\`\`" >> summary.md
               echo "" >> summary.md
-              echo "**Execution History:** [\`${{ steps.commit_changes.outputs.history_file }}\`](${{ steps.commit_changes.outputs.history_file }})" >> summary.md
-              echo "**Issue Directory:** [\`.claude-code/issues/issue-${{ steps.extract_task.outputs.issue_number }}/\`](${{ steps.commit_changes.outputs.issue_dir }})" >> summary.md
+              echo "**Issue Directory:** [.claude-code/issues/issue-${{ steps.extract_task.outputs.issue_number }}/](.claude-code/issues/issue-${{ steps.extract_task.outputs.issue_number }}/)" >> summary.md
             else
               echo "### ⚠️ No Changes" >> summary.md
               echo "Claude Code executed but no file changes were detected." >> summary.md
